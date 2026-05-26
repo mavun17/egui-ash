@@ -68,7 +68,10 @@ impl ExitSignal {
 }
 
 ///egui-ash run function.
-
+///
+/// ```ignore
+/// egui_winit_ash::run("my_app", MyAppCreator, RunOption::default());
+/// ```
 pub fn run<C: AppCreator<A> + 'static, A: Allocator + 'static>(
     app_id: impl Into<String>,
     creator: C,
