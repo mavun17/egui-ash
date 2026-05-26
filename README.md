@@ -106,4 +106,4 @@ Register an off-screen color image view with `ImageRegistry::register_user_textu
 
 ## License
 
-MIT OR Apache-2.0
+MIT
