@@ -1,3 +1,4 @@
+use egui::Ui;
 use egui::{ahash::HashMapExt, DeferredViewportUiCallback, ViewportIdMap};
 #[cfg(feature = "accesskit")]
 use egui_winit::accesskit_winit::Event as AccessKitEvent;
@@ -23,7 +24,7 @@ pub(crate) struct IntegrationEvent {
     pub(crate) accesskit: AccessKitEvent,
 }
 
-pub(crate) type ViewportUiCallback = Arc<dyn Fn(&egui::Context) + Send + Sync>;
+pub(crate) type ViewportUiCallback = Arc<dyn Fn(&mut Ui) + Send + Sync>;
 
 #[cfg(feature = "accesskit")]
 impl From<AccessKitEvent> for IntegrationEvent {
@@ -92,7 +93,9 @@ impl<A: Allocator + 'static> Integration<A> {
         present_mode: ash::vk::PresentModeKHR,
         receiver: ImageRegistryReceiver,
         theme: Option<winit::window::Theme>,
-        #[cfg(feature = "accesskit")] event_loop_proxy: &winit::event_loop::EventLoopProxy<IntegrationEvent>,
+        #[cfg(feature = "accesskit")] event_loop_proxy: &winit::event_loop::EventLoopProxy<
+            IntegrationEvent,
+        >,
         #[cfg(feature = "persistence")] storage: Storage,
         #[cfg(feature = "persistence")] persistent_windows: bool,
         #[cfg(feature = "persistence")] persistent_egui_memory: bool,
@@ -262,12 +265,13 @@ impl<A: Allocator + 'static> Integration<A> {
                 return false;
             };
 
-            match window_event {
-                winit::event::WindowEvent::ThemeChanged(theme) => {
-                    if follow_system_theme {
-                        viewport.window.set_theme(Some(*theme));
-                    }
+            if follow_system_theme {
+                if let winit::event::WindowEvent::ThemeChanged(theme) = window_event {
+                    viewport.window.set_theme(Some(*theme));
                 }
+            }
+
+            match window_event {
                 winit::event::WindowEvent::Focused(focused) => {
                     if *focused {
                         *self.focused_viewport.lock().unwrap() = Some(viewport_id);
@@ -406,13 +410,13 @@ impl<A: Allocator + 'static> Integration<A> {
         } = {
             let close_requested = raw_input.viewport().close_requested();
 
-            let full_output = self.context.run(raw_input, |ctx| {
+            let full_output = self.context.run_ui(raw_input, |ui| {
                 if let Some(viewport_ui_cb) = viewport_ui_cb.clone() {
                     // child viewport
-                    viewport_ui_cb(ctx);
+                    viewport_ui_cb(ui);
                 } else {
                     // ROOT viewport
-                    app.ui(ctx);
+                    app.ui(ui);
                 }
             });
 
@@ -833,7 +837,11 @@ fn immediate_viewport_renderer(
 
     // SAFETY: the event loop lives longer than this callback
     #[allow(unsafe_code)]
-    let event_loop = unsafe { std::ptr::from_ref::<ActiveEventLoop>(event_loop).as_ref().unwrap() };
+    let event_loop = unsafe {
+        std::ptr::from_ref::<ActiveEventLoop>(event_loop)
+            .as_ref()
+            .unwrap()
+    };
 
     move |ctx, mut immediate_viewport| {
         let mut renderer = renderer.lock().unwrap();
@@ -883,7 +891,7 @@ fn immediate_viewport_renderer(
             pixels_per_point,
             viewport_output,
         } = {
-            ctx.run(raw_input, |ctx| {
+            ctx.run_ui(raw_input, |ctx| {
                 (immediate_viewport.viewport_ui_cb)(ctx);
             })
         };
